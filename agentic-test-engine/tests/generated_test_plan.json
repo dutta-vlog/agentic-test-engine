@@ -1,0 +1,272 @@
+{
+  "feature": "AI-Driven Intelligent Alerting Engine",
+  "description": "System routes high-priority security alerts based on severity and source infrastructure.",
+  "generated_at": "2026-06-07T07:57:02.445532+00:00",
+  "total_tests": 8,
+  "test_cases": [
+    {
+      "test_id": "REQ-001-TC-001",
+      "name": "CRITICAL GCP alert routed to Slack within 2-second SLA",
+      "req_id": "REQ-001",
+      "category": "happy_path",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "CRITICAL",
+        "source": "GCP",
+        "message": "Unauthorized SSH access detected on prod-gke-node-01",
+        "alert_id": "0fbe7f88-0c1a-4d94-9d08-b66347186123"
+      },
+      "assertions": [
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "routed"
+        },
+        {
+          "field": "channel",
+          "op": "eq",
+          "value": "#security-gcp-critical"
+        },
+        {
+          "field": "within_sla",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "elapsed_seconds",
+          "op": "lt",
+          "value": 2.0
+        }
+      ],
+      "verify_slack": true,
+      "expected_slack_channel": "#security-gcp-critical"
+    },
+    {
+      "test_id": "REQ-001-TC-002",
+      "name": "CRITICAL AWS alert does NOT route to GCP Slack channel",
+      "req_id": "REQ-001",
+      "category": "negative",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "CRITICAL",
+        "source": "AWS",
+        "message": "Root access detected on ec2-prod-bastion",
+        "alert_id": "85c0cc60-5232-4f08-b0c0-a1bba55cf240"
+      },
+      "assertions": [
+        {
+          "field": "status",
+          "op": "ne",
+          "value": "routed"
+        }
+      ],
+      "verify_slack": false,
+      "expected_slack_channel": null
+    },
+    {
+      "test_id": "REQ-001-TC-003",
+      "name": "HIGH severity GCP alert is NOT treated as CRITICAL routing",
+      "req_id": "REQ-001",
+      "category": "negative",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "HIGH",
+        "source": "GCP",
+        "message": "API error rate elevated on gke-prod-cluster",
+        "alert_id": "47a89c81-ba84-4fc1-9eb3-180cba9bc3a9"
+      },
+      "assertions": [
+        {
+          "field": "status",
+          "op": "ne",
+          "value": "routed"
+        }
+      ],
+      "verify_slack": false,
+      "expected_slack_channel": null
+    },
+    {
+      "test_id": "REQ-001-TC-004",
+      "name": "CRITICAL GCP response body references correct req_id",
+      "req_id": "REQ-001",
+      "category": "meta",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "CRITICAL",
+        "source": "GCP",
+        "message": "Credential stuffing detected on GCP IAM",
+        "alert_id": "8370d47c-cc26-40f1-be03-265017e01dce"
+      },
+      "assertions": [
+        {
+          "field": "req_id",
+          "op": "eq",
+          "value": "REQ-001"
+        },
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "routed"
+        }
+      ],
+      "verify_slack": true,
+      "expected_slack_channel": "#security-gcp-critical"
+    },
+    {
+      "test_id": "REQ-002-TC-001",
+      "name": "LOW severity GCP alert batched in DB, no Slack webhook",
+      "req_id": "REQ-002",
+      "category": "happy_path",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "LOW",
+        "source": "GCP",
+        "message": "Minor config drift on gke-dev-cluster",
+        "alert_id": "9bc3adaf-be53-444b-8d2d-2682603b0713"
+      },
+      "assertions": [
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "batched"
+        },
+        {
+          "field": "webhook_triggered",
+          "op": "eq",
+          "value": false
+        },
+        {
+          "field": "storage",
+          "op": "eq",
+          "value": "database"
+        }
+      ],
+      "verify_no_slack": true
+    },
+    {
+      "test_id": "REQ-002-TC-002",
+      "name": "LOW severity AWS alert batched in DB, no Slack webhook",
+      "req_id": "REQ-002",
+      "category": "happy_path",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "LOW",
+        "source": "AWS",
+        "message": "Disk usage at 65% on ec2-staging-node-02",
+        "alert_id": "e59f5699-2697-4530-a12b-1007e4639e98"
+      },
+      "assertions": [
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "batched"
+        },
+        {
+          "field": "webhook_triggered",
+          "op": "eq",
+          "value": false
+        },
+        {
+          "field": "storage",
+          "op": "eq",
+          "value": "database"
+        }
+      ],
+      "verify_no_slack": true
+    },
+    {
+      "test_id": "REQ-002-TC-003",
+      "name": "Bulk 5x LOW alerts \u2014 all persisted in DB, no webhooks",
+      "req_id": "REQ-002",
+      "category": "bulk",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payloads": [
+        {
+          "severity": "LOW",
+          "source": "GCP",
+          "message": "Batch low-priority event 0",
+          "alert_id": "54c86228-ac24-404a-8ecd-b93e638a1ee6"
+        },
+        {
+          "severity": "LOW",
+          "source": "GCP",
+          "message": "Batch low-priority event 1",
+          "alert_id": "6a6dcfb5-2774-4578-933f-ffb5e37e4621"
+        },
+        {
+          "severity": "LOW",
+          "source": "GCP",
+          "message": "Batch low-priority event 2",
+          "alert_id": "dd437fe2-949a-4a1d-9304-64cdf660c5f3"
+        },
+        {
+          "severity": "LOW",
+          "source": "GCP",
+          "message": "Batch low-priority event 3",
+          "alert_id": "a2bad093-4850-4c12-9cb9-eb8334e0a0fb"
+        },
+        {
+          "severity": "LOW",
+          "source": "GCP",
+          "message": "Batch low-priority event 4",
+          "alert_id": "68dbad1d-9a0b-4097-84c1-bea84e9acd42"
+        }
+      ],
+      "assertions": [
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "batched"
+        }
+      ],
+      "verify_no_slack": true,
+      "bulk_count": 5
+    },
+    {
+      "test_id": "REQ-002-TC-004",
+      "name": "LOW alert response body references correct req_id",
+      "req_id": "REQ-002",
+      "category": "meta",
+      "method": "POST",
+      "endpoint": "/api/v1/alerts",
+      "payload": {
+        "severity": "LOW",
+        "source": "Azure",
+        "message": "Scheduled backup completed successfully",
+        "alert_id": "93820a9d-3167-42c6-a851-177ca6b45744"
+      },
+      "assertions": [
+        {
+          "field": "req_id",
+          "op": "eq",
+          "value": "REQ-002"
+        },
+        {
+          "field": "status",
+          "op": "eq",
+          "value": "batched"
+        }
+      ],
+      "verify_no_slack": true
+    }
+  ],
+  "summary": {
+    "by_req": {
+      "REQ-001": 4,
+      "REQ-002": 4
+    },
+    "by_category": {
+      "happy_path": 3,
+      "negative": 2,
+      "bulk": 1,
+      "meta": 2
+    }
+  }
+}
