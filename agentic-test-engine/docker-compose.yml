@@ -1,0 +1,37 @@
+services:
+  mcp-server:
+    build:
+      context: ./mock_servers/mcp_server
+    container_name: mcp-server
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  alert-api:
+    build:
+      context: ./mock_servers/alert_api
+    container_name: alert-api
+    ports:
+      - "8000:8000"
+    environment:
+      - SLACK_WEBHOOK_URL=http://mcp-server:8001/mock/slack
+      - DB_PATH=/data/alerts.db
+    volumes:
+      - alert-data:/data
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  alert-data:
