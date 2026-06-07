@@ -1,0 +1,71 @@
+name: Agentic Test Engine — CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Build, Start Services, Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install test dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Start mock services
+        run: docker compose up -d
+
+      - name: Wait for services to become healthy
+        run: |
+          echo "Waiting for alert-api and mcp-server …"
+          for i in $(seq 1 20); do
+            mcp=$(curl -sf http://localhost:8001/health && echo ok || echo fail)
+            api=$(curl -sf http://localhost:8000/health && echo ok || echo fail)
+            echo "  attempt $i — mcp=$mcp api=$api"
+            if [ "$mcp" = "ok" ] && [ "$api" = "ok" ]; then
+              echo "Both services healthy"
+              break
+            fi
+            sleep 3
+          done
+
+      - name: Generate test plan
+        run: python -m planner.test_planner
+
+      - name: Run tests (parallel)
+        env:
+          ALERT_API_URL: http://localhost:8000
+          MCP_SERVER_URL: http://localhost:8001
+        run: pytest tests/ -v --tb=short -n auto --junitxml=results/junit.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: results/
+
+      - name: Publish test summary
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: results/junit.xml
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
